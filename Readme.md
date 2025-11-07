@@ -4,25 +4,256 @@ API hệ thống đặt hẹn thầy dạy lái xe và xe tập lái sử dụng
 
 ## Cài đặt
 
+### Cách nhanh (Sử dụng Makefile)
+
+> **Lưu ý:** Trên Windows, cần cài đặt Make hoặc sử dụng Git Bash/WSL để chạy các lệnh Makefile. Nếu không có Make, xem phần [Cách thủ công](#cách-thủ-công) bên dưới.
+
 1. Cài đặt dependencies:
 ```bash
-pip install -r requirements.txt
+make install
 ```
 
-2. Khởi động database:
+2. Khởi động database và setup:
 ```bash
-docker-compose up -d db
+make up          # Khởi động PostgreSQL container
+make reset       # Reset và tạo database schema
+make master-data # Thêm dữ liệu mẫu (users, mentors, cars)
 ```
 
 3. Chạy ứng dụng:
 ```bash
-python main.py
+make run
 ```
 
-Hoặc sử dụng uvicorn:
+### Cách thủ công
+
+Nếu không sử dụng Makefile, xem chi tiết tại phần [Hướng dẫn Setup Database](#hướng-dẫn-setup-database).
+
+## Hướng dẫn Setup Database
+
+### Hướng dẫn nhanh (Sử dụng Makefile)
+
+#### Setup Database đầy đủ trong 3 bước:
+
 ```bash
-uvicorn main:app --reload
+make up          # Khởi động PostgreSQL container
+make reset       # Reset và tạo database schema (từ init.sql)
+make master-data # Thêm dữ liệu mẫu (users, mentors, cars)
 ```
+
+#### Các lệnh Makefile hữu ích:
+
+```bash
+make up          # Khởi động toàn bộ hệ thống (database, redis)
+make down        # Dừng và xóa toàn bộ hệ thống (kèm volume)
+make drop-db     # Xóa database container và volume
+make reset       # Reset database: xóa bảng cũ và tạo lại schema
+make master-data # Import dữ liệu mẫu vào database
+make dump        # Backup database ra file db/init.sql
+make logs        # Xem log các service
+```
+
+### Hướng dẫn chi tiết (Tham khảo)
+
+#### Yêu cầu
+- Docker và Docker Compose đã được cài đặt
+- Make (để sử dụng Makefile) - tùy chọn nhưng khuyến nghị
+- PostgreSQL client (psql) - tùy chọn, để kiểm tra database
+
+#### Các bước setup Database (Thủ công)
+
+#### 1. Khởi động PostgreSQL bằng Docker
+
+Khởi động container PostgreSQL:
+```bash
+docker-compose up -d db
+# Hoặc: make up
+```
+
+Kiểm tra container đang chạy:
+```bash
+docker-compose ps
+```
+
+#### 2. Kết nối vào PostgreSQL
+
+Có thể kết nối vào database bằng một trong các cách sau:
+
+**Cách 1: Sử dụng Docker exec**
+```bash
+docker-compose exec db psql -U postgres -d drive_coach
+```
+
+**Cách 2: Sử dụng psql từ máy local**
+```bash
+psql -h localhost -p 5432 -U postgres -d drive_coach
+```
+Password mặc định: `postgres`
+
+#### 3. Tạo Database Schema
+
+**Khuyến nghị: Sử dụng Makefile**
+```bash
+make reset  # Tự động reset và tạo schema từ init.sql
+```
+
+**Thủ công: Sử dụng file init.sql**
+
+**Trên Linux/Mac:**
+```bash
+docker-compose exec -T db psql -U postgres -d drive_coach < db/init.sql
+```
+
+**Trên Windows PowerShell:**
+```powershell
+Get-Content db/init.sql | docker-compose exec -T db psql -U postgres -d drive_coach
+```
+
+**Hoặc copy file vào container rồi chạy:**
+```bash
+# Tìm tên container: docker-compose ps
+docker cp db/init.sql <container_name>:/tmp/init.sql
+docker-compose exec db psql -U postgres -d drive_coach -f /tmp/init.sql
+```
+
+**Nếu đã kết nối vào PostgreSQL:**
+```sql
+\i /path/to/db/init.sql
+```
+
+**Tùy chọn: Sử dụng SQLAlchemy models (Auto-create)**
+
+Nếu ứng dụng được cấu hình để tự động tạo bảng từ models:
+```bash
+python -c "from models import Base; from database import engine; Base.metadata.create_all(bind=engine)"
+```
+
+#### 4. Thêm dữ liệu mẫu (Tùy chọn)
+
+**Khuyến nghị: Sử dụng Makefile**
+```bash
+make master-data  # Tự động import dữ liệu mẫu
+```
+
+**Thủ công: Import dữ liệu mẫu (users, mentors, cars)**
+
+**Trên Linux/Mac:**
+```bash
+docker-compose exec -T db psql -U postgres -d drive_coach < db/data-init.sql
+```
+
+**Trên Windows PowerShell:**
+```powershell
+Get-Content db/data-init.sql | docker-compose exec -T db psql -U postgres -d drive_coach
+```
+
+**Hoặc copy file vào container rồi chạy:**
+```bash
+# Tìm tên container: docker-compose ps
+docker cp db/data-init.sql <container_name>:/tmp/data-init.sql
+docker-compose exec db psql -U postgres -d drive_coach -f /tmp/data-init.sql
+```
+
+**Nếu đã kết nối vào PostgreSQL:**
+```sql
+\i /path/to/db/data-init.sql
+```
+
+#### 5. Kiểm tra Database
+
+Kiểm tra các bảng đã được tạo:
+```sql
+\dt
+```
+
+Kiểm tra dữ liệu:
+```sql
+SELECT COUNT(*) FROM users;
+SELECT COUNT(*) FROM mentors;
+SELECT COUNT(*) FROM cars;
+```
+
+### Cấu hình Database Connection
+
+Cấu hình kết nối database trong file `.env` hoặc biến môi trường:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/drive_coach
+```
+
+Hoặc thay đổi trong file `database.py` nếu cần.
+
+### Reset Database (Nếu cần)
+
+**Khuyến nghị: Sử dụng Makefile**
+```bash
+make reset       # Reset database và tạo lại schema
+make master-data # Thêm lại dữ liệu mẫu (nếu cần)
+```
+
+**Hoặc xóa hoàn toàn và tạo lại:**
+```bash
+make drop-db     # Xóa container và volume
+make up          # Khởi động lại database
+make reset       # Tạo lại schema
+make master-data # Thêm dữ liệu mẫu
+```
+
+**Thủ công: Sử dụng prepare.sql**
+
+**Trên Linux/Mac:**
+```bash
+docker-compose exec -T db psql -U postgres -d drive_coach < db/prepare.sql
+docker-compose exec -T db psql -U postgres -d drive_coach < db/init.sql
+docker-compose exec -T db psql -U postgres -d drive_coach < db/data-init.sql
+```
+
+**Trên Windows PowerShell:**
+```powershell
+Get-Content db/prepare.sql | docker-compose exec -T db psql -U postgres -d drive_coach
+Get-Content db/init.sql | docker-compose exec -T db psql -U postgres -d drive_coach
+Get-Content db/data-init.sql | docker-compose exec -T db psql -U postgres -d drive_coach
+```
+
+**Xóa và tạo lại container:**
+```bash
+docker-compose down -v
+docker-compose up -d db
+# Sau đó chạy lại các bước 3 và 4
+# Hoặc: make drop-db && make up && make reset && make master-data
+```
+
+### Thông tin Database
+
+- **Host**: localhost
+- **Port**: 5432
+- **Database**: drive_coach
+- **Username**: postgres
+- **Password**: postgres
+- **PostgreSQL Version**: 15
+
+### Backup và Restore Database
+
+**Backup database (Sử dụng Makefile):**
+```bash
+make dump  # Backup database ra file db/init.sql
+```
+
+**Backup database (Thủ công):**
+- **Linux/Mac:** `docker-compose exec db pg_dump -U postgres drive_coach > backup.sql`
+- **Windows PowerShell:** `docker-compose exec db pg_dump -U postgres drive_coach | Out-File -Encoding utf8 backup.sql`
+
+**Restore database:**
+- **Linux/Mac:** `docker-compose exec -T db psql -U postgres drive_coach < backup.sql`
+- **Windows PowerShell:** `Get-Content backup.sql | docker-compose exec -T db psql -U postgres drive_coach`
+
+### Lưu ý
+
+- Đảm bảo port 5432 không bị chiếm dụng bởi ứng dụng khác
+- Dữ liệu sẽ được lưu trong Docker volume `pgdata`
+- Khuyến nghị sử dụng Makefile để đơn giản hóa các thao tác với database
+- Trên Windows, cần cài đặt Git Bash hoặc WSL để chạy các script `.sh` trong Makefile
+- Nếu gặp lỗi với script trên Windows, có thể chạy các lệnh thủ công như hướng dẫn ở trên
 
 ## API Endpoints
 
