@@ -2,46 +2,104 @@
 
 API hệ thống đặt hẹn thầy dạy lái xe và xe tập lái sử dụng FastAPI và SQLAlchemy.
 
-## Cài đặt
+## Yêu cầu hệ thống
 
-### Cách nhanh (Sử dụng Makefile)
+Trước khi bắt đầu, đảm bảo máy tính của bạn đã cài đặt:
 
-> **Lưu ý:** Trên Windows, cần cài đặt Make hoặc sử dụng Git Bash/WSL để chạy các lệnh Makefile. Nếu không có Make, xem phần [Cách thủ công](#cách-thủ-công) bên dưới.
+- **Python** 3.8 trở lên
+- **Docker** và **Docker Compose** (để chạy PostgreSQL)
+- **Make** (tùy chọn nhưng khuyến nghị - để sử dụng Makefile)
+  - Trên Windows: Cài đặt Make qua Chocolatey hoặc sử dụng Git Bash/WSL
+  - Trên Linux/Mac: Thường đã có sẵn hoặc cài qua package manager
 
-1. Cài đặt dependencies:
+## Cài đặt và Chạy Project
+
+### Bước 1: Clone repository
+
+```bash
+git clone <repository-url>
+cd Driver-reservaton-BE
+```
+
+### Bước 2: Cài đặt dependencies
+
+**Sử dụng Makefile (Khuyến nghị):**
 ```bash
 make install
 ```
 
-2. Khởi động database và setup:
+**Hoặc thủ công:**
+```bash
+pip install -r requirements.txt
+```
+
+### Bước 3: Khởi động Database
+
+**Sử dụng Makefile (Khuyến nghị):**
 ```bash
 make up          # Khởi động PostgreSQL container
 make reset       # Reset và tạo database schema
 make master-data # Thêm dữ liệu mẫu (users, mentors, cars)
 ```
 
-3. Chạy ứng dụng:
+**Hoặc thủ công:**
+```bash
+# Khởi động PostgreSQL
+docker-compose up -d db
+
+# Đợi vài giây để database khởi động, sau đó tạo schema
+docker-compose exec -T db psql -U postgres -d drive_coach < db/init.sql
+
+# Thêm dữ liệu mẫu (tùy chọn)
+docker-compose exec -T db psql -U postgres -d drive_coach < db/data-init.sql
+```
+
+> **Lưu ý:** Trên Windows PowerShell, sử dụng:
+> ```powershell
+> Get-Content db/init.sql | docker-compose exec -T db psql -U postgres -d drive_coach
+> Get-Content db/data-init.sql | docker-compose exec -T db psql -U postgres -d drive_coach
+> ```
+
+### Bước 4: Cấu hình môi trường (Nếu cần)
+
+Tạo file `.env` trong thư mục gốc (nếu chưa có):
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/drive_coach
+SECRET_KEY=your-secret-key-here
+```
+
+Hoặc cấu hình trực tiếp trong file `database.py` nếu cần.
+
+### Bước 5: Chạy ứng dụng
+
+**Sử dụng Makefile:**
 ```bash
 make run
 ```
 
-### Cách thủ công
-
-Nếu không sử dụng Makefile, xem chi tiết tại phần [Hướng dẫn Setup Database](#hướng-dẫn-setup-database).
-
-## Hướng dẫn Setup Database
-
-### Hướng dẫn nhanh (Sử dụng Makefile)
-
-#### Setup Database đầy đủ trong 3 bước:
-
+**Hoặc thủ công:**
 ```bash
-make up          # Khởi động PostgreSQL container
-make reset       # Reset và tạo database schema (từ init.sql)
-make master-data # Thêm dữ liệu mẫu (users, mentors, cars)
+# Cách 1: Sử dụng uvicorn trực tiếp
+uvicorn main:app --reload
+
+# Cách 2: Chạy file main.py
+python main.py
 ```
 
-#### Các lệnh Makefile hữu ích:
+Ứng dụng sẽ chạy tại: **http://localhost:8000**
+
+### Truy cập API Documentation
+
+Sau khi server khởi động, truy cập:
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+## Hướng dẫn Setup Database (Chi tiết)
+
+Phần này cung cấp hướng dẫn chi tiết về setup database. Nếu đã hoàn thành các bước ở phần [Cài đặt và Chạy Project](#cài-đặt-và-chạy-project), bạn có thể bỏ qua phần này.
+
+### Các lệnh Makefile hữu ích
 
 ```bash
 make up          # Khởi động toàn bộ hệ thống (database, redis)
@@ -53,21 +111,19 @@ make dump        # Backup database ra file db/init.sql
 make logs        # Xem log các service
 ```
 
-### Hướng dẫn chi tiết (Tham khảo)
+### Hướng dẫn thủ công (Tham khảo)
 
 #### Yêu cầu
 - Docker và Docker Compose đã được cài đặt
-- Make (để sử dụng Makefile) - tùy chọn nhưng khuyến nghị
 - PostgreSQL client (psql) - tùy chọn, để kiểm tra database
 
-#### Các bước setup Database (Thủ công)
+#### Các bước setup Database
 
-#### 1. Khởi động PostgreSQL bằng Docker
+##### 1. Khởi động PostgreSQL bằng Docker
 
 Khởi động container PostgreSQL:
 ```bash
 docker-compose up -d db
-# Hoặc: make up
 ```
 
 Kiểm tra container đang chạy:
@@ -75,7 +131,7 @@ Kiểm tra container đang chạy:
 docker-compose ps
 ```
 
-#### 2. Kết nối vào PostgreSQL
+##### 2. Kết nối vào PostgreSQL
 
 Có thể kết nối vào database bằng một trong các cách sau:
 
@@ -90,9 +146,9 @@ psql -h localhost -p 5432 -U postgres -d drive_coach
 ```
 Password mặc định: `postgres`
 
-#### 3. Tạo Database Schema
+##### 3. Tạo Database Schema
 
-**Khuyến nghị: Sử dụng Makefile**
+**Sử dụng Makefile (Khuyến nghị):**
 ```bash
 make reset  # Tự động reset và tạo schema từ init.sql
 ```
@@ -128,9 +184,9 @@ Nếu ứng dụng được cấu hình để tự động tạo bảng từ mod
 python -c "from models import Base; from database import engine; Base.metadata.create_all(bind=engine)"
 ```
 
-#### 4. Thêm dữ liệu mẫu (Tùy chọn)
+##### 4. Thêm dữ liệu mẫu (Tùy chọn)
 
-**Khuyến nghị: Sử dụng Makefile**
+**Sử dụng Makefile (Khuyến nghị):**
 ```bash
 make master-data  # Tự động import dữ liệu mẫu
 ```
@@ -159,7 +215,7 @@ docker-compose exec db psql -U postgres -d drive_coach -f /tmp/data-init.sql
 \i /path/to/db/data-init.sql
 ```
 
-#### 5. Kiểm tra Database
+##### 5. Kiểm tra Database
 
 Kiểm tra các bảng đã được tạo:
 ```sql
@@ -508,13 +564,7 @@ DriveCoachReservation/
 - ✅ Phân quyền: User chỉ xem reserves của chính mình
 - ✅ Timestamp fields (createdAt, updatedAt)
 
-## Truy cập API Documentation
-
-Sau khi chạy server, truy cập:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## Lưu ý
+## Lưu ý quan trọng
 
 - Tất cả API cần authentication (trừ POST /user/ và GET /mentor/, GET /car/)
 - Chỉ User mới có thể đặt lịch hẹn
