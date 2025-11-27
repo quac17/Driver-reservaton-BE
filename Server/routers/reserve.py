@@ -173,6 +173,22 @@ def create_reserve(
                 status_code=400,
                 detail=f"Xe đã được đặt vào khoảng thời gian từ {detail.start_time} đến {detail.end_time}"
             )
+        
+        # Kiểm tra xung đột thời gian với mentor
+        conflicting_mentor_reserves = db.query(ReserveDetail).join(
+            Reserve, ReserveDetail.reserve_id == Reserve.id
+        ).filter(
+            Reserve.mentor_id == reserve.mentor_id,
+            Reserve.status.in_(["pending", "confirmed"]),
+            ReserveDetail.start_time < detail.end_time,
+            ReserveDetail.end_time > detail.start_time
+        ).all()
+        
+        if conflicting_mentor_reserves:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Mentor đã được đặt vào khoảng thời gian từ {detail.start_time} đến {detail.end_time}"
+            )
     
     # Tạo reserve
     db_reserve = Reserve(

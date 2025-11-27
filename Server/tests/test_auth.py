@@ -1,11 +1,4 @@
 import pytest
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from fastapi.testclient import TestClient
-from main import app
-
-client = TestClient(app)
 
 # Test Data
 USER_CREDENTIALS = {"username": "user1", "password": "123456"}
@@ -13,7 +6,7 @@ MENTOR_CREDENTIALS = {"username": "mentor1", "password": "123456"}
 INVALID_PASSWORD = {"username": "user1", "password": "wrongpassword"}
 INVALID_USER = {"username": "nonexistent", "password": "123"}
 
-def test_login_user_success():
+def test_login_user_success(client):
     """AUTH-01: Successful authentication for a standard user"""
     response = client.post("/authen/login", data=USER_CREDENTIALS)
     assert response.status_code == 200
@@ -23,7 +16,7 @@ def test_login_user_success():
     assert data["message"]["loginData"]["username"] == USER_CREDENTIALS["username"]
     assert data["message"]["loginData"]["isMentor"] is False
 
-def test_login_mentor_success():
+def test_login_mentor_success(client):
     """AUTH-02: Successful authentication for a mentor"""
     response = client.post("/authen/login", data=MENTOR_CREDENTIALS)
     assert response.status_code == 200
@@ -33,19 +26,19 @@ def test_login_mentor_success():
     assert data["message"]["loginData"]["username"] == MENTOR_CREDENTIALS["username"]
     assert data["message"]["loginData"]["isMentor"] is True
 
-def test_login_fail_wrong_password():
+def test_login_fail_wrong_password(client):
     """AUTH-03: Failed authentication due to incorrect password"""
     response = client.post("/authen/login", data=INVALID_PASSWORD)
     assert response.status_code == 400
     assert response.json()["detail"] == "Sai tên đăng nhập hoặc mật khẩu"
 
-def test_login_fail_user_not_found():
+def test_login_fail_user_not_found(client):
     """AUTH-04: Failed authentication because the username does not exist"""
     response = client.post("/authen/login", data=INVALID_USER)
     assert response.status_code == 400
     assert response.json()["detail"] == "Sai tên đăng nhập hoặc mật khẩu"
 
-def test_access_protected_resource_valid_token():
+def test_access_protected_resource_valid_token(client):
     """AUTH-05: Accessing an authenticated resource with a valid JWT Token"""
     # Login first to get token
     login_res = client.post("/authen/login", data=USER_CREDENTIALS)
@@ -68,14 +61,14 @@ def test_access_protected_resource_valid_token():
     assert response.status_code in [200, 403, 404] 
     assert response.status_code != 401
 
-def test_access_protected_resource_invalid_token():
+def test_access_protected_resource_invalid_token(client):
     """AUTH-06: Accessing an authenticated resource with an expired or invalid JWT Token"""
     headers = {"Authorization": "Bearer invalid_token"}
     response = client.get("/user/1", headers=headers)
     assert response.status_code == 401
     assert response.json()["detail"] == "Could not validate credentials"
 
-def test_logout_success():
+def test_logout_success(client):
     """AUTH-07: Successful logout and Token invalidation"""
     # Login
     login_res = client.post("/authen/login", data=USER_CREDENTIALS)
